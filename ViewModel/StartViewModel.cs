@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media.Media3D;
 
-namespace Chat.ViewModel
+namespace Chat.ViewModel///sdfghjk
 {
 	internal class StartViewModel : BindingTools
 	{
