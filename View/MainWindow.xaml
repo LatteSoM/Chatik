@@ -40,7 +40,8 @@
             VerticalContentAlignment="Stretch" 
             Height="40"
             Padding="0"
-            Visibility="{Binding _visPropertty}"/>
+            Visibility="{Binding _visPropertty}"
+            Command="{Binding ShowLogs}"/>
 
 
         <Grid Grid.Column="1" Grid.Row="2"
@@ -91,7 +92,7 @@
 
         <ListBox
             Grid.Column="0" Grid.Row="1"
-            ItemsSource="{Binding _clientsListSource}">
+            ItemsSource="{Binding nickNamesListProperty}">
             
         </ListBox>
 

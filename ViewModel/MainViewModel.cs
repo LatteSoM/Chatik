@@ -13,14 +13,12 @@ using System.Security.Policy;
 using System.Globalization;
 using System.Threading;
 using System.Windows;
+using Chat.ViewModel.TcpLogic;
 
 namespace Chat.ViewModel
 {
     internal class MainViewModel : BindingTools
     {
-
-        /*private static ObservableCollection<Socket> clients = new ObservableCollection<Socket>();*/
-
         public static ObservableCollection<Socket> clients = new ObservableCollection<Socket>();
 
         public ObservableCollection<Socket> _clientsListSource
@@ -32,6 +30,19 @@ namespace Chat.ViewModel
                 OnPropertyChanged();
             }
         }
+
+        private static ObservableCollection<string> allNickNames = new ObservableCollection<string>();
+
+        public ObservableCollection<string> nickNamesListProperty
+        {
+            get { return allNickNames; }
+            set 
+            {
+                allNickNames = value;
+                OnPropertyChanged();
+            }
+        }
+
 
 
         public static string ipAddress = "";
@@ -51,7 +62,7 @@ namespace Chat.ViewModel
 
         /*List<string> messageSource = new List<string>();*/
 
-        private ObservableCollection<string> messageSource = new ObservableCollection<string>();
+        private static ObservableCollection<string> messageSource = new ObservableCollection<string>();
 
         public ObservableCollection<string> _messageSource
         {
@@ -81,40 +92,42 @@ namespace Chat.ViewModel
         }
 
         private static Socket socket;
-        private static Socket clientSocket;
+        private static Socket clientSocket =  new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        private static TcpLogic.TcpClient clnt = new TcpLogic.TcpClient(clientSocket, messageSource, allNickNames);
 
         public static CancellationTokenSource ClientIsVorking;
         public static CancellationTokenSource ServerIsVorking;
 
+        public static string nickname;
+
         public MainViewModel()
         {
 
-            clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            TcpLogic.TcpClient clnt = new TcpLogic.TcpClient(clientSocket, messageSource);
+            /*clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            TcpLogic.TcpClient clnt = new TcpLogic.TcpClient(clientSocket, messageSource, allNickNames );*/
 
             if (!needToHide)
             {
                 socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                TcpLogic.TcpServer ser = new TcpLogic.TcpServer(socket, clients, messageSource);
+                TcpLogic.TcpServer ser = new TcpLogic.TcpServer(socket, clients, messageSource, allNickNames);
                 IPEndPoint ipPoint = new IPEndPoint(IPAddress.Any, 6789);
                 socket.Bind(ipPoint);
                 socket.Listen(1000);
-                ServerIsVorking = new CancellationTokenSource();//////////////////////////
-                ser.ListenClients(ServerIsVorking.Token);////////////////////////
+                ServerIsVorking = new CancellationTokenSource();
+                ser.ListenClients(ServerIsVorking.Token);
                 clientSocket.Connect(ipAddress, 6789);
-
-                /*if (ServerIsVorking.IsCancellationRequested) { CloseHost(); }*/
-
+                ShowLogs = new BindableCommand(_ => ser.ShowChatLogs());
                 ExitToStartWindow = new BindableCommand(_ => CloseHost());
             }
             else
             {
-                /* clientSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);*/
                 clientSocket.Connect(ipAddress, 6789);
-                ClientIsVorking = new CancellationTokenSource();///////////////////////////////////
+                clnt.SendNickname(nickname);
+                clnt.SendMessage("/show");
+                ClientIsVorking = new CancellationTokenSource();
                 clnt.ReceiveMessage(ClientIsVorking.Token);
 
-                ExitToStartWindow = new BindableCommand(_ => CloseClient());/////////////////////////////
+                ExitToStartWindow = new BindableCommand(_ => CloseClient());
 
             }
 
@@ -123,9 +136,11 @@ namespace Chat.ViewModel
 
         public BindableCommand SendCom { get; set; }
 
-        public BindableCommand ExitToStartWindow { get; set; }///////////////////////////
+        public BindableCommand ExitToStartWindow { get; set; }
 
-        public static void CloseHost()//////////////////////////
+        public BindableCommand ShowLogs { get; set; }
+
+        public static void CloseHost()
         {
             socket.Close();
             ServerIsVorking.Cancel();
@@ -135,14 +150,15 @@ namespace Chat.ViewModel
             CloseWin();
         }
 
-        public static void CloseClient()///////////////////////////
+        public static void CloseClient()
         {
             if (ClientIsVorking != null) { ClientIsVorking.Cancel(); }
+            clnt.SendMessage($"ушов-{nickname}");
             clientSocket.Close();
             CloseWin();
         }
 
-        private static void CloseWin(bool needToCloseByMessage = false)//////////////////////
+        private static void CloseWin(bool needToCloseByMessage = false)
         {
             MainWindow win = Application.Current.Windows.OfType<MainWindow>().FirstOrDefault();
             if (win != null)
@@ -150,63 +166,5 @@ namespace Chat.ViewModel
                 win.Close();
             }
         }
-
-
-        /*private async Task ReceiveMessage()
-        {
-            while (true)
-            {
-                byte[] bytes = new byte[1024];
-                var b = new ArraySegment<byte>(bytes);
-                await clientSocket.ReceiveAsync(b, SocketFlags.None);
-                string message = Encoding.UTF8.GetString(bytes);
-
-                _messageSource.Add(message);
-            }
-        }
-
-        private async Task SendMessage(string message)
-        {
-            byte[] bytes = Encoding.UTF8.GetBytes(message);
-            var b = new ArraySegment<byte>(bytes);
-            await clientSocket.SendAsync(b, SocketFlags.None);
-        }*/
-
-
-        /*private async Task ListenClients()
-        {
-            while (true)
-            {
-                var client = await socket.AcceptAsync();
-                _clientsListSource.Add(client);
-                ReceiveMsg(client);
-            }
-        }
-
-        private async Task ReceiveMsg(Socket client)
-        {
-            while (true)
-            {
-                byte[] bytes = new byte[1024];
-                var b = new ArraySegment<byte>(bytes);
-                await client.ReceiveAsync(b, SocketFlags.None);
-                string message = Encoding.UTF8.GetString(bytes);
-
-                _messageSource.Add($"[message from {client.RemoteEndPoint} : {message}]");
-
-                foreach (var item in clients)
-                {
-                    SendMesg(item, message);
-                }
-            }
-        }
-
-        private async Task SendMesg(Socket client, string message)
-        {
-            byte[] bytes = Encoding.UTF8.GetBytes(message);
-            var b = new ArraySegment<byte>(bytes);
-            await client.SendAsync(b, SocketFlags.None);
-        }
-    }*/
     }
 }
